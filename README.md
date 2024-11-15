@@ -64,3 +64,25 @@ forge create \
     --etherscan-api-key <YOUR_ETHERSCAN_API_KEY> \
     src/PeerToken.sol:PeerToken
 ```
+
+## Deploy Fair Launch Pool to Base Sepolia
+
+```bash
+forge create \
+    --rpc-url $BASESEPOLIA_RPC_URL \
+    --ledger \
+    --mnemonic-derivation-path "$MNEMONIC_PATH" \
+    --verify \
+    --constructor-args $DANK_TOKEN_ADDRESS $FEE_COLLECTOR_ADDRESS \
+    --etherscan-api-key $BASESCAN_API_KEY \
+    src/DANKFairLaunch.sol:DANKFairLaunch
+```
+
+## Initialize Fair Launch Pool
+
+```bash
+cast send $FAIR_LAUNCH_ADDRESS "initializePool()" \
+    --ledger \
+    --mnemonic-derivation-path "$MNEMONIC_PATH" \
+    --rpc-url $BASESEPOLIA_RPC_URL
+```

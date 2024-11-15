@@ -34,7 +34,7 @@ contract DANKFairLaunch is IDANKFairLaunch, ReentrancyGuard, AccessControl, Paus
     error Unauthorized(address caller, string reason);
 
     // ============ Constants ============
-    uint256 public constant DURATION = 5 days;
+    uint256 public constant DURATION = 1 days;
     uint256 public constant END_BUFFER = 5 minutes;
     uint256 public constant MAX_ETH_PER_WALLET = 0.5 ether;
     uint256 public constant MIN_ETH_STAKE = 0.01 ether;
