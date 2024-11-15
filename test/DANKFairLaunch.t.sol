@@ -5,6 +5,9 @@ import "forge-std/Test.sol";
 import "../src/DANKFairLaunch.sol";
 import "../src/DankToken.sol";
 
+// Define custom errors from the contract
+error StakingError(string reason);
+
 contract DANKFairLaunchTest is Test {
     DankToken public dankToken;
     DANKFairLaunch public fairLaunch;
@@ -189,4 +192,126 @@ contract DANKFairLaunchTest is Test {
         fairLaunch.recoverTokens(address(dankToken), recoveryAmount);
         assertEq(dankToken.balanceOf(address(this)), initialBalance + recoveryAmount);
     }
+
+    function testStakingCooldown() public {
+        fairLaunch.initializePool();
+        
+        // Ensure we're past any initial cooldown
+        vm.warp(block.timestamp + 3601);
+        uint256 initialTime = block.timestamp;
+        
+        vm.startPrank(alice);
+        
+        // First stake
+        fairLaunch.stake{value: 0.3 ether}();
+        
+        // Try staking immediately after (should fail)
+        vm.expectRevert(abi.encodeWithSelector(StakingError.selector, "Cooldown active"));
+        fairLaunch.stake{value: 0.1 ether}();
+        
+        // Advance time but not enough (30 minutes)
+        vm.warp(initialTime + 1800);
+        
+        // Should still fail
+        vm.expectRevert(abi.encodeWithSelector(StakingError.selector, "Cooldown active"));
+        fairLaunch.stake{value: 0.1 ether}();
+        
+        // Advance time past cooldown (1 hour + 1 second)
+        vm.warp(initialTime + 3601);
+        
+        // This should now succeed
+        fairLaunch.stake{value: 0.1 ether}();
+        
+        vm.stopPrank();
+    }
+
+    function testFeeCollection() public {
+        fairLaunch.initializePool();
+        
+        vm.warp(block.timestamp + 3601);
+        
+        uint256 initialFeeCollectorBalance = feeCollector.balance;
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.5 ether}();
+        
+        // Advance past end time
+        vm.warp(block.timestamp + 5 days + 1);
+        
+        vm.prank(alice);
+        fairLaunch.claimTokens();
+        
+        // Check fee collector received correct amount
+        assertGt(feeCollector.balance, initialFeeCollectorBalance);
+    }
+
+    function testMultipleClaimsProportions() public {
+        fairLaunch.initializePool();
+        
+        vm.warp(block.timestamp + 3601);
+        
+        // Alice stakes 0.3 ETH
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.3 ether}();
+        
+        // Bob stakes 0.2 ETH
+        vm.prank(bob);
+        fairLaunch.stake{value: 0.2 ether}();
+        
+        // Advance past end time
+        vm.warp(block.timestamp + 5 days + 1);
+        
+        // Get expected amounts
+        (uint256 aliceTokens,,) = fairLaunch.getClaimableAmounts(alice);
+        (uint256 bobTokens,,) = fairLaunch.getClaimableAmounts(bob);
+        
+        // Verify proportions (Alice should get 60%, Bob 40% of tokens)
+        assertEq(aliceTokens * 2, bobTokens * 3);
+    }
+
+    function testFailDoubleInitialize() public {
+        fairLaunch.initializePool();
+        vm.expectRevert("Already initialized");
+        fairLaunch.initializePool();
+    }
+
+    function testFailClaimBeforeEnd() public {
+        fairLaunch.initializePool();
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.3 ether}();
+        
+        vm.expectRevert("Fair launch not ended");
+        fairLaunch.claimTokens();
+    }
+
+    function testEventEmissions() public {
+        fairLaunch.initializePool();
+        
+        vm.warp(block.timestamp + 3601);
+        
+        // First, check Staked event
+        vm.expectEmit(true, false, false, true, address(fairLaunch));
+        emit Staked(alice, 0.3 ether, block.timestamp);
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.3 ether}();
+        
+        // Advance past end time
+        vm.warp(block.timestamp + 5 days + 1);
+        
+        // Calculate expected amounts
+        (uint256 expectedTokenAmount, uint256 expectedEthReturn,) = fairLaunch.getClaimableAmounts(alice);
+        
+        // Then check Withdrawn event (note: contract emits Withdrawn, not Claimed)
+        vm.expectEmit(true, false, false, true, address(fairLaunch));
+        emit Withdrawn(alice, expectedEthReturn, expectedTokenAmount, block.timestamp);
+        
+        vm.prank(alice);
+        fairLaunch.claimTokens();
+    }
+
+    // Update event definitions to match contract exactly
+    event Staked(address indexed user, uint256 amount, uint256 timestamp);
+    event Withdrawn(address indexed user, uint256 ethAmount, uint256 dankAmount, uint256 timestamp);
 }
