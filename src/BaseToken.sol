@@ -9,15 +9,39 @@ import {Nonces} from "openzeppelin-contracts/contracts/utils/Nonces.sol";
 import {Time} from "openzeppelin-contracts/contracts/utils/types/Time.sol";
 import {Votes} from "openzeppelin-contracts/contracts/governance/utils/Votes.sol";
 
+/**
+ * @title BaseToken
+ * @dev Implementation of the base token with voting and permit capabilities.
+ * Inherits from ERC20, ERC20Permit, and ERC20Votes.
+ */
 contract BaseToken is ERC20, ERC20Permit, ERC20Votes {
-    uint256 public constant MAX_SUPPLY = 10_000_000_000e18;
+    /// @notice Maximum supply of tokens that can ever exist
+    uint256 public immutable MAX_SUPPLY;
 
-    constructor(string memory _name, string memory _symbol) ERC20Permit(_name) ERC20(_name, _symbol) {}
+    /**
+     * @dev Constructor that sets up the token with name, symbol and initializes max supply
+     * @param _name Name of the token
+     * @param _symbol Symbol of the token
+     */
+    constructor(
+        string memory _name, 
+        string memory _symbol
+    ) ERC20Permit(_name) ERC20(_name, _symbol) {
+        MAX_SUPPLY = _maxSupply();
+    }
 
+    /**
+     * @dev Returns the current timestamp as the clock value
+     * @return Current block timestamp as uint48
+     */
     function clock() public view virtual override returns (uint48) {
         return Time.timestamp();
     }
 
+    /**
+     * @dev Returns the clock mode for the contract
+     * @return String indicating the clock mode is timestamp-based
+     */
     function CLOCK_MODE() public view virtual override returns (string memory) {
         // Check that the clock was not modified
         if (clock() != Time.timestamp()) {
@@ -26,14 +50,34 @@ contract BaseToken is ERC20, ERC20Permit, ERC20Votes {
         return "mode=timestamp";
     }
 
-    function _maxSupply() internal pure override returns (uint256) {
+    /**
+     * @dev Internal function to return the maximum supply
+     * @return Maximum token supply
+     */
+    function _maxSupply() internal view virtual override returns (uint256) {
         return MAX_SUPPLY;
     }
 
-    function nonces(address _owner) public view override(ERC20Permit, Nonces) returns (uint256) {
+    /**
+     * @dev Returns the current nonce for an address
+     * @param _owner Address to query nonce for
+     * @return Current nonce value
+     */
+    function nonces(address _owner)
+        public 
+        view 
+        override(ERC20Permit, Nonces) 
+        returns (uint256) 
+    {
         return Nonces.nonces(_owner);
     }
 
+    /**
+     * @dev Hook that is called before any transfer of tokens
+     * @param _from Address tokens are transferred from
+     * @param _to Address tokens are transferred to
+     * @param _value Amount of tokens to transfer
+     */
     function _update(address _from, address _to, uint256 _value) internal virtual override(ERC20, ERC20Votes) {
         return ERC20Votes._update(_from, _to, _value);
     }
