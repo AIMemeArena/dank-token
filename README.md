@@ -31,24 +31,36 @@ This repository contains smart contracts for implementing multichain token deplo
 
 ## Deployment
 
-To deploy these contracts, you can use Forge. Here's an example of how to deploy the PeerToken contract using forge:
+To deploy these contracts, you can use Forge with a Ledger hardware wallet for enhanced security. Here's an example of how to deploy the HubToken contract:
 
 [Install Foundry](https://book.getfoundry.sh/getting-started/installation)
 
 ```bash
-forge create --rpc-url <SEPOLIA_RPC_URL> --private-key <PRIVATE_KEY> src/PeerToken.sol:PeerToken --constructor-args "TestBurnToken" "TBT" <MINTER_ADDRESS> <OWNER_ADDRESS>
+forge create \
+    --rpc-url <RPC_URL> \
+    --ledger \
+    --mnemonic-derivation-path "m/44'/60'/0'/0/0" \
+    --verify \
+    --constructor-args "TokenName" "SYMBOL" <MINTER_ADDRESS> <OWNER_ADDRESS> \
+    --etherscan-api-key <YOUR_ETHERSCAN_API_KEY> \
+    src/HubToken.sol:HubToken
 ```
 
-## Mint Tokens
-After deployment, you can mint tokens using the cast send command from Foundry:
+Key parameters:
+- `--ledger`: Uses Ledger hardware wallet for signing
+- `--mnemonic-derivation-path`: Specifies which address to use (default Ethereum path is "m/44'/60'/0'/0/0")
+- `--verify`: Automatically verifies contract on Etherscan
+- `--etherscan-api-key`: Required for contract verification
+
+For PeerToken deployment, use the same pattern but replace the contract path:
 
 ```bash
-cast send $TOKEN_ADDRESS \
-  "mint(address,uint256)" \
-  $RECIPIENT_ADDRESS \
-  $AMOUNT_IN_WEI \  
-  --private-key $ETH_PRIVATE_KEY \
-  --rpc-url $YOUR_RPC_URL
+forge create \
+    --rpc-url <RPC_URL> \
+    --ledger \
+    --mnemonic-derivation-path "m/44'/60'/0'/0/0" \
+    --verify \
+    --constructor-args "TokenName" "SYMBOL" <MINTER_ADDRESS> <OWNER_ADDRESS> \
+    --etherscan-api-key <YOUR_ETHERSCAN_API_KEY> \
+    src/PeerToken.sol:PeerToken
 ```
-
-For 1000 tokens with 18 decimals, use AMOUNT_IN_WEI = 1000000000000000000000
