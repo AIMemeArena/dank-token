@@ -37,13 +37,13 @@ To deploy these contracts, you can use Forge with a Ledger hardware wallet for e
 
 ```bash
 forge create \
-    --rpc-url <RPC_URL> \
+    --rpc-url $RPC_URL \
     --ledger \
-    --mnemonic-derivation-path "m/44'/60'/0'/0/0" \
+    --mnemonic-derivation-path "$MNEMONIC_PATH" \
     --verify \
-    --constructor-args "TokenName" "SYMBOL" <MINTER_ADDRESS> <OWNER_ADDRESS> \
-    --etherscan-api-key <YOUR_ETHERSCAN_API_KEY> \
-    src/HubToken.sol:HubToken
+    --constructor-args "$TOKEN_NAME" "$TOKEN_SYMBOL" "$INITIAL_HOLDER" "$MAX_SUPPLY" \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
+    src/DankToken.sol:DankToken
 ```
 
 Key parameters:

@@ -20,14 +20,15 @@ contract BaseToken is ERC20, ERC20Permit, ERC20Votes {
 
     /**
      * @dev Constructor that sets up the token with name, symbol and initializes max supply
-     * @param _name Name of the token
-     * @param _symbol Symbol of the token
+     * @param tokenName Name of the token
+     * @param tokenSymbol Symbol of the token
      */
     constructor(
-        string memory _name, 
-        string memory _symbol
-    ) ERC20Permit(_name) ERC20(_name, _symbol) {
-        MAX_SUPPLY = _maxSupply();
+        string memory tokenName, 
+        string memory tokenSymbol,
+        uint256 maxSupply
+    ) ERC20Permit(tokenName) ERC20(tokenName, tokenSymbol) {
+        MAX_SUPPLY = maxSupply;
     }
 
     /**

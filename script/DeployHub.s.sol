@@ -28,16 +28,20 @@ contract DeployHub is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address initialHolder = vm.envAddress("INITIAL_HOLDER");
+        uint256 maxSupply = vm.envUint("MAX_SUPPLY");
         
         vm.startBroadcast(deployerPrivateKey);
 
         DankToken token = new DankToken(
             TOKEN_NAME, 
             TOKEN_SYMBOL,
-            initialHolder
+            initialHolder,
+            maxSupply
         );
+        
         console.log("DankToken deployed to:", address(token));
         console.log("Initial tokens minted to:", initialHolder);
+        console.log("Total supply:", maxSupply);
 
         vm.stopBroadcast();
     }

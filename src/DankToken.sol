@@ -6,7 +6,7 @@ import {BaseToken} from "src/BaseToken.sol";
 /**
  * @title DankToken
  * @dev ERC20 token for Meme Arena platform
- * @notice This contract implements the core token functionality for the AI Meme Arena ecosystem
+ * @notice This contract implements the core token functionality for the Meme Arena ecosystem
  * @dev Inherits from BaseToken which provides ERC20, permit and voting capabilities
  * @dev Initial supply is minted  to initialHolder address during deployment
  * @dev Token has a fixed maximum supply defined in the BaseToken contract
@@ -19,15 +19,17 @@ contract DankToken is BaseToken {
      * @param _name The name of the token
      * @param _symbol The symbol of the token
      * @param _initialHolder The initial holder of the token who receives the total supply
+     * @param _maxSupply The maximum supply of tokens
      */
     constructor(
         string memory _name,
         string memory _symbol,
-        address _initialHolder
-    ) BaseToken(_name, _symbol) {
-        _mint(_initialHolder, MAX_SUPPLY);
+        address _initialHolder,
+        uint256 _maxSupply
+    ) BaseToken(_name, _symbol, _maxSupply) {
+        _mint(_initialHolder, _maxSupply);
         
-        emit TokenInitialized(_name, _symbol, MAX_SUPPLY, _initialHolder);
+        emit TokenInitialized(_name, _symbol, _maxSupply, _initialHolder);
     }
 
     /**
