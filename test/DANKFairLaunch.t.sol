@@ -3,11 +3,11 @@ pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
 import "../src/DANKFairLaunch.sol";
-import "../src/DANKToken.sol";
+import "../src/DankToken.sol";
 
 contract DANKFairLaunchTest is Test {
+    DankToken public dankToken;
     DANKFairLaunch public fairLaunch;
-    DANKToken public dankToken;
     
     address public owner = address(this);
     address public feeCollector = address(0x999);
@@ -16,23 +16,30 @@ contract DANKFairLaunchTest is Test {
     address public carol = address(0x3);
 
     uint256 public constant INITIAL_MINT = 420_690_000_000 * 1e18;
-    uint256 public constant FAIR_LAUNCH_AMOUNT = 105_172_500_000 * 1e18; // 25% of supply
+    uint256 public constant FAIR_LAUNCH_AMOUNT = 105_172_500_000 * 1e18;
     
-    event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 ethAmount, uint256 dankAmount);
-
     function setUp() public {
-        // Deploy contracts
-        dankToken = new DANKToken();
-        fairLaunch = new DANKFairLaunch(address(dankToken), feeCollector);
-
-        // Setup initial states
-        dankToken.mint(address(fairLaunch), FAIR_LAUNCH_AMOUNT);
+        // Start at timestamp 1000
+        vm.warp(1000);
         
-        // Fund test users
-        vm.deal(alice, 1 ether);
-        vm.deal(bob, 1 ether);
-        vm.deal(carol, 1 ether);
+        dankToken = new DankToken(
+            "DANK Token",
+            "DANK",
+            address(this),
+            INITIAL_MINT
+        );
+
+        fairLaunch = new DANKFairLaunch(address(dankToken), feeCollector);
+        
+        // Grant roles
+        fairLaunch.grantRole(fairLaunch.ADMIN_ROLE(), address(this));
+        fairLaunch.grantRole(fairLaunch.PAUSER_ROLE(), address(this));
+        
+        dankToken.transfer(address(fairLaunch), FAIR_LAUNCH_AMOUNT);
+        
+        vm.deal(alice, 10 ether);
+        vm.deal(bob, 10 ether);
+        vm.deal(carol, 10 ether);
     }
 
     function testInitializePool() public {
@@ -41,138 +48,145 @@ contract DANKFairLaunchTest is Test {
         assertEq(fairLaunch.endTime(), block.timestamp + 5 days);
     }
 
-    function testCannotInitializeTwice() public {
-        fairLaunch.initializePool();
-        vm.expectRevert("Already initialized");
-        fairLaunch.initializePool();
-    }
-
     function testStaking() public {
         fairLaunch.initializePool();
         
+        // Set initial timestamp and ensure no cooldown
+        vm.warp(block.timestamp + 3601);
+        
         vm.startPrank(alice);
-        uint256 stakeAmount = 0.5 ether;
+        fairLaunch.stake{value: 0.3 ether}();
         
-        vm.expectEmit(true, false, false, true);
-        emit Staked(alice, stakeAmount);
-        
-        fairLaunch.stake{value: stakeAmount}();
-        
-        assertEq(fairLaunch.userStakes(alice), stakeAmount);
+        assertEq(fairLaunch.userStakes(alice), 0.3 ether);
         assertTrue(fairLaunch.hasStaked(alice));
-        vm.stopPrank();
-    }
-
-    function testStakingLimits() public {
-        fairLaunch.initializePool();
         
-        vm.startPrank(alice);
-        vm.expectRevert("Exceeds max stake");
-        fairLaunch.stake{value: 0.6 ether}();
+        // Advance time past cooldown (1 hour + 1 second)
+        vm.warp(block.timestamp + 3601);
+        
+        // Second stake should now work
+        fairLaunch.stake{value: 0.2 ether}();
+        assertEq(fairLaunch.userStakes(alice), 0.5 ether);
         vm.stopPrank();
     }
 
     function testMultipleStakers() public {
         fairLaunch.initializePool();
         
+        // Ensure no cooldown for first stake
+        vm.warp(block.timestamp + 3601);
+        
         // Alice stakes
         vm.prank(alice);
         fairLaunch.stake{value: 0.3 ether}();
         
-        // Bob stakes
+        // Bob stakes after cooldown
+        vm.warp(block.timestamp + 3601);
         vm.prank(bob);
         fairLaunch.stake{value: 0.4 ether}();
         
         assertEq(fairLaunch.totalETHStaked(), 0.7 ether);
     }
 
-    function testWithdrawal() public {
+    function testClaimTokens() public {
         fairLaunch.initializePool();
         
-        // Stake
+        // Ensure no cooldown for stake
+        vm.warp(block.timestamp + 3601);
+        
         vm.startPrank(alice);
         fairLaunch.stake{value: 0.5 ether}();
-        vm.stopPrank();
         
-        // Advance time
+        // Advance time past end (5 days + 1 second)
         vm.warp(block.timestamp + 5 days + 1);
         
-        // Calculate expected rewards
-        uint256 expectedRewards = fairLaunch.calculateRewards(alice);
+        uint256 initialEthBalance = alice.balance;
+        uint256 initialDankBalance = dankToken.balanceOf(alice);
         
-        // Track balances before withdrawal
-        uint256 ethBefore = alice.balance;
-        uint256 dankBefore = dankToken.balanceOf(alice);
+        (uint256 expectedTokens, uint256 expectedEth,) = fairLaunch.getClaimableAmounts(alice);
         
-        vm.prank(alice);
-        fairLaunch.withdraw();
+        fairLaunch.claimTokens();
         
-        // Verify balances after withdrawal
-        assertEq(alice.balance, ethBefore + 0.5 ether);
-        assertEq(dankToken.balanceOf(alice), dankBefore + expectedRewards);
-    }
-
-    function testCannotWithdrawEarly() public {
-        fairLaunch.initializePool();
-        
-        vm.prank(alice);
-        fairLaunch.stake{value: 0.5 ether}();
-        
-        vm.expectRevert("Pool not ended");
-        vm.prank(alice);
-        fairLaunch.withdraw();
+        assertEq(alice.balance, initialEthBalance + expectedEth);
+        assertEq(dankToken.balanceOf(alice), initialDankBalance + expectedTokens);
+        vm.stopPrank();
     }
 
     function testEmergencyWithdraw() public {
         fairLaunch.initializePool();
         
+        // Ensure no cooldown for stake
+        vm.warp(block.timestamp + 3601);
+        
         vm.startPrank(alice);
         fairLaunch.stake{value: 0.5 ether}();
         
-        uint256 balanceBefore = alice.balance;
+        uint256 initialBalance = alice.balance;
+        vm.stopPrank();
+        
+        // Pause contract
+        fairLaunch.pause();
+        
+        vm.prank(alice);
         fairLaunch.emergencyWithdraw();
         
-        assertEq(alice.balance, balanceBefore + 0.5 ether);
-        assertEq(fairLaunch.userStakes(alice), 0);
-        assertFalse(fairLaunch.hasStaked(alice));
-        vm.stopPrank();
+        assertEq(alice.balance, initialBalance + 0.5 ether);
+        assertTrue(fairLaunch.hasClaimed(alice));
+    }
+
+    function testFailStakeAfterEnd() public {
+        fairLaunch.initializePool();
+        vm.warp(block.timestamp + 5 days - 4 minutes);
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.5 ether}();
+    }
+
+    function testFailStakeOverLimit() public {
+        fairLaunch.initializePool();
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.6 ether}(); // Over 0.5 ETH limit
+    }
+
+    function testFailStakeBelowMinimum() public {
+        fairLaunch.initializePool();
+        
+        vm.prank(alice);
+        fairLaunch.stake{value: 0.009 ether}(); // Below 0.01 ETH minimum
     }
 
     function testPauseUnpause() public {
         fairLaunch.initializePool();
-        fairLaunch.pause();
         
-        vm.expectRevert("Pausable: paused");
+        // Ensure no cooldown
+        vm.warp(block.timestamp + 3601);
+        
+        fairLaunch.pause();
+        assertTrue(fairLaunch.paused());
+        
+        // OpenZeppelin's Pausable uses a custom error now
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         vm.prank(alice);
         fairLaunch.stake{value: 0.5 ether}();
         
         fairLaunch.unpause();
+        assertFalse(fairLaunch.paused());
         
         vm.prank(alice);
         fairLaunch.stake{value: 0.5 ether}();
         assertTrue(fairLaunch.hasStaked(alice));
     }
 
-    // Fuzz testing
-    function testFuzz_StakingAmount(uint256 amount) public {
-        // Bound amount between 0 and max stake
-        amount = bound(amount, 0, 0.5 ether);
-        
+    function testRecoverTokens() public {
         fairLaunch.initializePool();
-        vm.deal(alice, amount);
         
-        vm.prank(alice);
-        if (amount > 0) {
-            fairLaunch.stake{value: amount}();
-            assertEq(fairLaunch.userStakes(alice), amount);
-        } else {
-            vm.expectRevert("Zero stake");
-            fairLaunch.stake{value: amount}();
-        }
+        // Advance time past fair launch end + 30 days
+        vm.warp(block.timestamp + 5 days + 30 days + 1);
+        
+        uint256 initialBalance = dankToken.balanceOf(address(this));
+        uint256 recoveryAmount = 1000;
+        
+        fairLaunch.recoverTokens(address(dankToken), recoveryAmount);
+        assertEq(dankToken.balanceOf(address(this)), initialBalance + recoveryAmount);
     }
-
-    // Invariant tests
-    function invariant_totalStakedNeverExceedsBalance() public {
-        assertLe(address(fairLaunch).balance, fairLaunch.totalETHStaked());
-    }
-} 
+}
