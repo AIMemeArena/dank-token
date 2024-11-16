@@ -86,3 +86,12 @@ cast send $FAIR_LAUNCH_ADDRESS "initializePool()" \
     --mnemonic-derivation-path "$MNEMONIC_PATH" \
     --rpc-url $BASESEPOLIA_RPC_URL
 ```
+
+## Claim tokens
+
+```bash
+cast send $FAIR_LAUNCH_ADDRESS "claimTokens()" \
+    --ledger \
+        --mnemonic-derivation-path "$MNEMONIC_PATH" \
+    --rpc-url $BASESEPOLIA_RPC_URL
+```
