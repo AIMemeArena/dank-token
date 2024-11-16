@@ -10,7 +10,7 @@ import "../src/DankToken.sol";
  */
 contract DeployHub is Script {
     // Constants
-    string constant TOKEN_NAME = "DankToken";
+    string constant TOKEN_NAME = "Dank";
     string constant TOKEN_SYMBOL = "DANK";
 
     /**
@@ -39,7 +39,7 @@ contract DeployHub is Script {
             maxSupply
         );
         
-        console.log("DankToken deployed to:", address(token));
+        console.log("Dank Token deployed to:", address(token));
         console.log("Initial tokens minted to:", initialHolder);
         console.log("Total supply:", maxSupply);
 
